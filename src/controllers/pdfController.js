@@ -49,63 +49,86 @@ exports.generateMonthlyPDF = async (req, res, next) => {
  
     doc.pipe(res);
  
-    // Title
-    doc.fontSize(18).text("Water Bottle Tracker Report", {
-      align: "center",
-      underline: true,
-    });
+    // HEADER
+    const drawHeader = () => {
+      doc.fontSize(18).text("Water Bottle Tracker Report", {
+        align: "center",
+        underline: true,
+      });
  
-    doc.moveDown(0.5);
+      doc.moveDown(0.5);
  
-    doc.fontSize(14).text(`Month: ${monthName} ${year}`, {
-      align: "center",
-    });
+      doc.fontSize(14).text(`Month: ${monthName} ${year}`, {
+        align: "center",
+      });
  
-    doc.moveDown(1);
+      doc.moveDown(1);
  
-    // Summary
-    doc
-      .fontSize(12)
-      .font("Helvetica-Bold")
-      .text("Monthly Summary", { underline: true });
+      doc
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .text("Monthly Summary", { underline: true });
  
-    doc.moveDown(0.5);
-    doc.font("Helvetica");
+      doc.moveDown(0.5);
+      doc.font("Helvetica").fontSize(12);
  
-    doc.text(`Total Bottles: ${summary.total_bottles || 0}`);
-    doc.text(`Delivery Days: ${summary.delivery_days || 0}`);
-    doc.text(`Total Amount: ${summary.total_amount || 0}`);
+      doc.text(`Total Bottles: ${summary.total_bottles || 0}`);
+      doc.text(`Delivery Days: ${summary.delivery_days || 0}`);
+      doc.text(`Total Amount: ${summary.total_amount || 0}`);
  
-    doc.moveDown(1);
+      doc.moveDown(1);
+    };
  
-    // Table setup
-    const tableTop = doc.y;
+    const drawTableHeader = (y) => {
+      const columnPositions = [40, 80, 220, 320, 420];
+      const headers = ["#", "Date", "Bottles", "Price", "Amount"];
  
-    // Updated column positions (added numbering column)
+      doc.font("Helvetica-Bold").fontSize(12);
+ 
+      headers.forEach((h, i) => {
+        doc.text(h, columnPositions[i], y);
+      });
+ 
+      doc
+        .moveTo(35, y + 15)
+        .lineTo(560, y + 15)
+        .stroke();
+ 
+      return y + 25;
+    };
+ 
+    // START
+    drawHeader();
+ 
+    let y = doc.y;
     const columnPositions = [40, 80, 220, 320, 420];
  
-    // Headers
-    doc.font("Helvetica-Bold");
-    const headers = ["#", "Date", "Bottles", "Price", "Amount"];
+    y = drawTableHeader(y);
  
-    headers.forEach((h, i) => {
-      doc.text(h, columnPositions[i], tableTop);
-    });
- 
-    // Header underline
-    doc
-      .moveTo(35, tableTop + 15)
-      .lineTo(560, tableTop + 15)
-      .stroke();
- 
-    let y = tableTop + 25;
- 
-    doc.font("Helvetica");
+    doc.font("Helvetica").fontSize(12);
  
     let totalBottles = 0;
     let totalAmount = 0;
  
+    let rowCount = 0;
+    const rowsPerPage = 20;
+ 
     entries.forEach((e, index) => {
+      if (rowCount === rowsPerPage) {
+        doc
+          .moveTo(35, y - 5)
+          .lineTo(560, y - 5)
+          .stroke();
+ 
+        doc.addPage();
+        y = 50;
+ 
+        y = drawTableHeader(y);
+        doc.font("Helvetica").fontSize(12);
+ 
+        rowCount = 0;
+      }
+ 
       const dateStr = e.date
         ? new Date(e.date).toLocaleDateString("en-US", {
             year: "numeric",
@@ -114,9 +137,7 @@ exports.generateMonthlyPDF = async (req, res, next) => {
           })
         : "-";
  
-      // Number column
       doc.text(index + 1, columnPositions[0], y);
- 
       doc.text(dateStr, columnPositions[1], y);
       doc.text(e.bottle_count || 0, columnPositions[2], y);
       doc.text(e.price_per_bottle || 0, columnPositions[3], y);
@@ -125,23 +146,20 @@ exports.generateMonthlyPDF = async (req, res, next) => {
       totalBottles += e.bottle_count || 0;
       totalAmount += e.amount || 0;
  
-      y += 20;
- 
-      // Page break
-      if (y > 750) {
-        doc.addPage();
-        y = 50;
-      }
+      y += 27;
+      rowCount++;
     });
  
-    // Line before total
-    doc.moveTo(35, y).lineTo(560, y).stroke();
+    doc
+      .moveTo(35, y - 5)
+      .lineTo(560, y - 5)
+      .stroke();
  
     y += 10;
  
-    // Total row
-    doc.font("Helvetica-Bold");
-    doc.text("TOTAL", columnPositions[1], y); // shifted because of No. column
+    //  TOTAL
+    doc.font("Helvetica-Bold").fontSize(12);
+    doc.text("TOTAL", columnPositions[1], y);
     doc.text(totalBottles, columnPositions[2], y);
     doc.text("-", columnPositions[3], y);
     doc.text(totalAmount, columnPositions[4], y);
